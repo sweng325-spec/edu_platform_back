@@ -5,7 +5,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
-
+from rest_framework import serializers
+from users.models import SubTodo
 from .serializers import (
     RegisterSerializer,
     UserProfileSerializer,
@@ -16,8 +17,8 @@ from .serializers import (
 
 # Import models from other apps for analytics
 from courses.models import Course, Enrollment
-from wallets.models import Transaction, Wallet
-
+# from wallets.models import Transaction, Wallet
+from .models import Todo
 User = get_user_model()
 
 
@@ -171,3 +172,104 @@ def admin_dashboard_analytics(request):
     }
 
     return Response(analytics_data, status=status.HTTP_200_OK)
+
+class TodoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Todo
+        fields = ('id', 'user', 'title', 'completed', 'created_at')
+        read_only_fields = ('id', 'user', 'created_at')
+        
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Todo
+from .serializers import TodoSerializer
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def todo_list_create_view(request):
+    if request.method == 'GET':
+        # This line filters To-Dos specifically for the user in the JWT token
+        todos = Todo.objects.filter(user=request.user).order_by('-created_at')
+        serializer = TodoSerializer(todos, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    elif request.method == 'POST':
+        serializer = TodoSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET', 'PUT', 'PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def todo_detail_view(request, todo_id):
+    """
+    GET: Retrieve a specific To-Do item.
+    PUT/PATCH: Update a specific To-Do item.
+    DELETE: Remove a specific To-Do item.
+    """
+    try:
+        todo = Todo.objects.get(id=todo_id, user=request.user)
+    except Todo.DoesNotExist:
+        return Response({"error": "To-Do item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'GET':
+        serializer = TodoSerializer(todo)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method in ['PUT', 'PATCH']:
+        partial = (request.method == 'PATCH')
+        serializer = TodoSerializer(todo, data=request.data, partial=partial)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        todo.delete()
+        return Response({"message": "To-Do item deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+
+from .serializers import SubTodoSerializer,SubTodo
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def subtodo_create_view(request, todo_id):
+    """POST: Create a subtask under a specific parent To-Do."""
+    try:
+        todo = Todo.objects.get(id=todo_id, user=request.user)
+    except Todo.DoesNotExist:
+        return Response({"error": "Parent To-Do item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    serializer = SubTodoSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save(todo=todo)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['PATCH', 'DELETE'])
+@permission_classes([IsAuthenticated])
+def subtodo_detail_view(request, subtodo_id):
+    """
+    PATCH: Toggle or update a specific subtask.
+    DELETE: Remove a specific subtask.
+    """
+    try:
+        subtodo = SubTodo.objects.get(id=subtodo_id, todo__user=request.user)
+    except SubTodo.DoesNotExist:
+        return Response({"error": "Sub-To-Do item not found."}, status=status.HTTP_404_NOT_FOUND)
+
+    if request.method == 'PATCH':
+        serializer = SubTodoSerializer(subtodo, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    elif request.method == 'DELETE':
+        subtodo.delete()
+        return Response({"message": "Subtask deleted successfully."}, status=status.HTTP_204_NO_CONTENT)    

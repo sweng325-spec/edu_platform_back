@@ -66,3 +66,64 @@ class UserStatusSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'username', 'email', 'role', 'is_active')
         read_only_fields = ('id', 'username', 'email', 'role')
+        
+        
+from rest_framework import serializers
+from .models import Todo
+
+class TodoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Todo
+        fields = ('id', 'user', 'title', 'completed', 'created_at')
+        read_only_fields = ('id', 'user', 'created_at')
+        
+        
+from rest_framework import serializers
+from .models import Todo, SubTodo
+
+
+class SubTodoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubTodo
+        fields = ('id', 'todo', 'title', 'completed', 'created_at')
+        read_only_fields = ('id', 'todo', 'created_at')
+
+
+class TodoSerializer(serializers.ModelSerializer):
+    subtasks = SubTodoSerializer(many=True, required=False)
+
+    class Meta:
+        model = Todo
+        fields = (
+            'id', 
+            'user', 
+            'title', 
+            'completed', 
+            'deadline_date', 
+            'expected_duration_hours', 
+            'subtasks', 
+            'created_at'
+        )
+        read_only_fields = ('id', 'user', 'created_at')
+
+    def create(self, validated_data):
+        subtasks_data = validated_data.pop('subtasks', [])
+        todo = Todo.objects.create(**validated_data)
+        for subtask_data in subtasks_data:
+            SubTodo.objects.create(todo=todo, **subtask_data)
+        return todo
+
+    def update(self, instance, validated_data):
+        subtasks_data = validated_data.pop('subtasks', None)
+        instance.title = validated_data.get('title', instance.title)
+        instance.completed = validated_data.get('completed', instance.completed)
+        instance.deadline_date = validated_data.get('deadline_date', instance.deadline_date)
+        instance.expected_duration_hours = validated_data.get('expected_duration_hours', instance.expected_duration_hours)
+        instance.save()
+
+        if subtasks_data is not None:
+            instance.subtasks.all().delete()
+            for subtask_data in subtasks_data:
+                SubTodo.objects.create(todo=instance, **subtask_data)
+
+        return instance
