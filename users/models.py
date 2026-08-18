@@ -22,7 +22,7 @@ class Todo(models.Model):
     title = models.CharField(max_length=255)
     completed = models.BooleanField(default=False)
     deadline_date = models.DateField(null=True, blank=True)
-    expected_duration_hours = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    expected_duration_minutes = models.PositiveIntegerField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

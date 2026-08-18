@@ -70,17 +70,8 @@ class UserStatusSerializer(serializers.ModelSerializer):
         
 from rest_framework import serializers
 from .models import Todo
-
-class TodoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Todo
-        fields = ('id', 'user', 'title', 'completed', 'created_at')
-        read_only_fields = ('id', 'user', 'created_at')
-        
-        
 from rest_framework import serializers
 from .models import Todo, SubTodo
-
 
 class SubTodoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -100,7 +91,7 @@ class TodoSerializer(serializers.ModelSerializer):
             'title', 
             'completed', 
             'deadline_date', 
-            'expected_duration_hours', 
+            'expected_duration_minutes', 
             'subtasks', 
             'created_at'
         )
@@ -118,7 +109,9 @@ class TodoSerializer(serializers.ModelSerializer):
         instance.title = validated_data.get('title', instance.title)
         instance.completed = validated_data.get('completed', instance.completed)
         instance.deadline_date = validated_data.get('deadline_date', instance.deadline_date)
-        instance.expected_duration_hours = validated_data.get('expected_duration_hours', instance.expected_duration_hours)
+        instance.expected_duration_minutes = validated_data.get(
+            'expected_duration_minutes', instance.expected_duration_minutes
+        )
         instance.save()
 
         if subtasks_data is not None:

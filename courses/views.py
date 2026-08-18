@@ -248,3 +248,50 @@ def course_material_detail_view(request, material_id):
 
     material.delete()
     return Response({"message": "Material deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from .models import Course, CourseFolder
+from .serializers import CourseFolderSerializer
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def course_folders_view(request, course_id):
+    """
+    GET: List all folders/sections for a course.
+    POST: Create a new folder (Teacher only).
+    """
+    try:
+        course = Course.objects.get(id=course_id)
+    except Course.DoesNotExist:
+        return Response(
+            {'error': 'Course not found.'}, status=status.HTTP_404_NOT_FOUND
+        )
+
+    if request.method == 'GET':
+        folders = (
+            CourseFolder.objects.filter(course=course)
+            .prefetch_related('materials')
+            .order_by('order', 'created_at')
+        )
+        serializer = CourseFolderSerializer(
+            folders, many=True, context={'request': request}
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+    elif request.method == 'POST':
+        if course.teacher != request.user:
+            return Response(
+                {'error': 'Only the course teacher can create folders.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = CourseFolderSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(course=course)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
